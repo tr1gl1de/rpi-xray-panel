@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPi Panel — Setup</title>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-md p-8 max-w-md w-full">
+        <h1 class="text-2xl font-bold mb-6">Добро пожаловать в RPi Panel</h1>
+        <div id="wizard-steps">
+            <div id="wizard-step1">
+                <h2 class="text-lg font-semibold mb-4">Шаг 1 — Пароль панели</h2>
+                <form hx-post="/setup/password" hx-target="#wizard-steps" hx-swap="innerHTML">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-1">Пароль (мин. 6 символов)</label>
+                        <input type="password" name="password" class="w-full border rounded px-3 py-2" minlength="6" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-1">Подтвердите пароль</label>
+                        <input type="password" name="confirm" class="w-full border rounded px-3 py-2" minlength="6" required>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white rounded py-2 hover:bg-blue-700">Далее</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

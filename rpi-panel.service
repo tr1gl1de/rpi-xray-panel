@@ -1,0 +1,11 @@
+[Unit]
+Description=RPi Panel
+After=network.target uap0.service
+
+[Service]
+User=root
+ExecStart=/home/max/rpi-panel
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

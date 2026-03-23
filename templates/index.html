@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPi Panel</title>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body:not(.advanced) .advanced-only { display: none; }
+        .log-line-error { color: #dc2626; font-weight: 600; }
+        .log-line-warning { color: #d97706; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm">
+        <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+            <h1 class="text-xl font-bold text-gray-800">RPi Panel</h1>
+            <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2 cursor-pointer text-sm">
+                    <span class="text-gray-600">Simple</span>
+                    <input type="checkbox" id="mode-toggle" class="sr-only peer" onchange="toggleMode()">
+                    <div class="relative w-11 h-6 bg-gray-200 peer-checked:bg-blue-600 rounded-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+                    <span class="text-gray-600">Advanced</span>
+                </label>
+                <form method="POST" action="/auth/logout" class="inline">
+                    <button type="submit" class="text-sm text-gray-500 hover:text-red-600">Выйти</button>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6 space-y-6">
+
+        <!-- VPN Status (Simple + Advanced) -->
+        <section class="bg-white rounded-lg shadow p-6" hx-get="/api/status" hx-trigger="load, every 30s" hx-target="#status-data" hx-swap="innerHTML">
+            <h2 class="text-lg font-semibold mb-4">Статус VPN</h2>
+            <div id="status-data">
+                <p class="text-gray-400">Загрузка...</p>
+            </div>
+        </section>
+
+        <!-- Server Selection (Simple + Advanced) -->
+        <section class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Сервер</h2>
+            <div id="server-list" hx-get="/api/vless" hx-trigger="load" hx-swap="innerHTML">
+                <p class="text-gray-400">Загрузка...</p>
+            </div>
+        </section>
+
+        <!-- WiFi (Simple: current + change button) -->
+        <section class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">WiFi</h2>
+            <div id="wifi-status" hx-get="/api/wifi/status" hx-trigger="load" hx-swap="innerHTML">
+                <p class="text-gray-400">Загрузка...</p>
+            </div>
+            <div class="mt-4">
+                <button class="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300 text-sm"
+                    hx-get="/api/wifi/scan" hx-target="#wifi-scan-results" hx-swap="innerHTML">
+                    Сканировать сети
+                </button>
+                <div id="wifi-scan-results" class="mt-3"></div>
+            </div>
+        </section>
+
+        <!-- Quick Actions (Simple + Advanced) -->
+        <section class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Быстрые действия</h2>
+            <div class="flex flex-wrap gap-3">
+                <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm"
+                    hx-post="/api/restart/xray" hx-swap="none">
+                    Перезапустить VPN
+                </button>
+                <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm"
+                    onclick="updateSubscription()">
+                    Обновить подписку
+                </button>
+            </div>
+        </section>
+
+        <!-- ========== ADVANCED MODE SECTIONS ========== -->
+
+        <!-- Dashboard (Advanced) -->
+        <section class="advanced-only bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Дашборд</h2>
+            <div id="dashboard-services" hx-get="/api/status" hx-trigger="load, every 30s" hx-swap="innerHTML">
+                <p class="text-gray-400">Загрузка...</p>
+            </div>
+        </section>
+
+        <!-- VLESS Management (Advanced) -->
+        <section class="advanced-only bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">VLESS серверы</h2>
+            <div id="vless-list" hx-get="/api/vless" hx-trigger="load" hx-swap="innerHTML">
+                <p class="text-gray-400">Загрузка...</p>
+            </div>
+            <div class="mt-4 border-t pt-4">
+                <h3 class="text-sm font-medium mb-2">Добавить сервер</h3>
+                <form hx-post="/api/vless" hx-target="#vless-list" hx-swap="innerHTML" class="flex gap-2">
+                    <input type="text" name="url" placeholder="vless://..." class="flex-1 border rounded px-3 py-2 text-sm" required>
+                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm">Добавить</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Subscriptions (Advanced) -->
+        <section class="advanced-only bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Подписки</h2>
+            <div class="mb-4">
+                <span class="text-sm text-gray-600">HWID: </span>
+                <span id="hwid" hx-get="/api/hwid" hx-trigger="load" hx-swap="innerHTML" class="font-mono text-sm">...</span>
+            </div>
+            <form hx-post="/api/sub" hx-target="#sub-result" hx-swap="innerHTML" class="flex gap-2">
+                <input type="text" name="url" placeholder="https://sub.example.com/..." class="flex-1 border rounded px-3 py-2 text-sm" required>
+                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm">Загрузить</button>
+            </form>
+            <div id="sub-result" class="mt-3"></div>
+        </section>
+
+        <!-- WiFi Advanced (signal, security) -->
+        <section class="advanced-only bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">WiFi (расширенное)</h2>
+            <div id="wifi-advanced" hx-get="/api/wifi/scan" hx-trigger="load" hx-swap="innerHTML">
+                <p class="text-gray-400">Загрузка...</p>
+            </div>
+            <div class="mt-4">
+                <h3 class="text-sm font-medium mb-2">Подключиться</h3>
+                <form hx-post="/api/wifi/connect" hx-target="#wifi-connect-result" hx-swap="innerHTML" class="flex gap-2">
+                    <input type="text" name="ssid" placeholder="SSID" class="border rounded px-3 py-2 text-sm" required>
+                    <input type="password" name="password" placeholder="Пароль" class="border rounded px-3 py-2 text-sm">
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm">Подключить</button>
+                </form>
+                <div id="wifi-connect-result" class="mt-2"></div>
+            </div>
+        </section>
+
+        <!-- Service Restart (Advanced) -->
+        <section class="advanced-only bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Сервисы</h2>
+            <div class="flex flex-wrap gap-2">
+                <button class="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600" hx-post="/api/restart/xray" hx-swap="none">xray</button>
+                <button class="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600" hx-post="/api/restart/redsocks" hx-swap="none">redsocks</button>
+                <button class="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600" hx-post="/api/restart/hostapd" hx-swap="none">hostapd</button>
+                <button class="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600" hx-post="/api/restart/dnsmasq" hx-swap="none">dnsmasq</button>
+                <button class="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600" hx-post="/api/restart/uap0" hx-swap="none">uap0</button>
+            </div>
+        </section>
+
+        <!-- Logs (Advanced) -->
+        <section class="advanced-only bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Логи</h2>
+            <div class="flex gap-2 mb-3">
+                <select id="log-service" class="border rounded px-3 py-2 text-sm">
+                    <option value="xray">xray</option>
+                    <option value="redsocks">redsocks</option>
+                    <option value="hostapd">hostapd</option>
+                    <option value="dnsmasq">dnsmasq</option>
+                </select>
+                <button class="bg-gray-200 text-gray-700 px-4 py-2 rounded text-sm hover:bg-gray-300" onclick="loadLogs()">Обновить</button>
+            </div>
+            <pre id="log-output" class="bg-gray-900 text-green-400 p-4 rounded text-xs overflow-x-auto max-h-96 overflow-y-auto font-mono">Выберите сервис и нажмите "Обновить"</pre>
+        </section>
+
+        <!-- Settings (Advanced) -->
+        <section class="advanced-only bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Настройки</h2>
+
+            <div class="space-y-4">
+                <div>
+                    <h3 class="text-sm font-medium mb-2">Сменить пароль панели</h3>
+                    <form hx-post="/api/settings/panel-password" hx-target="#settings-result" hx-swap="innerHTML" class="space-y-2">
+                        <input type="password" name="current_password" placeholder="Текущий пароль" class="w-full border rounded px-3 py-2 text-sm" required>
+                        <input type="password" name="new_password" placeholder="Новый пароль (мин. 6)" class="w-full border rounded px-3 py-2 text-sm" required>
+                        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">Сменить</button>
+                    </form>
+                </div>
+
+                <div class="border-t pt-4">
+                    <h3 class="text-sm font-medium mb-2">Пароль WiFi точки доступа</h3>
+                    <form hx-post="/api/settings/ap-password" hx-target="#settings-result" hx-swap="innerHTML" class="space-y-2">
+                        <input type="password" name="current_password" placeholder="Текущий пароль панели" class="w-full border rounded px-3 py-2 text-sm" required>
+                        <input type="password" name="ap_password" placeholder="Новый пароль AP (мин. 8, пустое = открытая)" class="w-full border rounded px-3 py-2 text-sm">
+                        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">Обновить AP</button>
+                    </form>
+                </div>
+
+                <div id="settings-result"></div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        function toggleMode() {
+            const advanced = document.getElementById('mode-toggle').checked;
+            document.body.classList.toggle('advanced', advanced);
+            localStorage.setItem('rpi-panel-mode', advanced ? 'advanced' : 'simple');
+        }
+
+        // Restore mode from localStorage
+        (function() {
+            const mode = localStorage.getItem('rpi-panel-mode');
+            if (mode === 'advanced') {
+                document.body.classList.add('advanced');
+                document.getElementById('mode-toggle').checked = true;
+            }
+        })();
+
+        function loadLogs() {
+            const service = document.getElementById('log-service').value;
+            fetch('/api/logs/' + service)
+                .then(r => r.json())
+                .then(data => {
+                    const output = document.getElementById('log-output');
+                    if (data.lines && data.lines.length > 0) {
+                        output.innerHTML = data.lines.map(line => {
+                            if (line.includes('ERROR') || line.includes('error')) {
+                                return '<span class="log-line-error">' + escapeHtml(line) + '</span>';
+                            } else if (line.includes('WARNING') || line.includes('warning')) {
+                                return '<span class="log-line-warning">' + escapeHtml(line) + '</span>';
+                            }
+                            return escapeHtml(line);
+                        }).join('\n');
+                    } else {
+                        output.textContent = 'Нет логов';
+                    }
+                })
+                .catch(() => {
+                    document.getElementById('log-output').textContent = 'Ошибка загрузки логов';
+                });
+        }
+
+        function updateSubscription() {
+            // Trigger reload of subscriptions
+            fetch('/api/sub', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'url='})
+                .then(() => location.reload())
+                .catch(() => alert('Ошибка обновления подписки'));
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
