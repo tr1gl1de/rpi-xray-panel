@@ -1,3 +1,482 @@
 {
-  "tasks": []
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Инициализация проекта и структура",
+      "description": "Создать go.mod, main.go с HTTP-сервером, embed.FS для шаблонов и статики, базовую структуру директорий (templates/, Makefile). Сервер слушает :8080.",
+      "acceptance_criteria": [
+        "go.mod инициализирован",
+        "main.go запускает HTTP-сервер на :8080",
+        "templates/ встроены через embed.FS",
+        "Makefile с целями build и deploy (кросс-компиляция GOOS=linux GOARCH=arm GOARM=6)",
+        "Проект компилируется: go build ./..."
+      ],
+      "priority": "high",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [],
+      "notes": "PRD §5, §6, §10"
+    },
+    {
+      "id": 2,
+      "title": "Слой хранения данных (config, servers, subs)",
+      "description": "Реализовать чтение/запись JSON-файлов конфигурации: config.json (логин, bcrypt-хэш, setup_done, ap_secured, порт), servers.json (список VLESS серверов, индекс активного), subs.json (URL подписок, дата обновления). Путь: /etc/rpi-panel/. Для разработки — локальная директория ./data/.",
+      "acceptance_criteria": [
+        "Структуры Config, ServerList, SubList определены",
+        "Функции LoadConfig/SaveConfig, LoadServers/SaveServers, LoadSubs/SaveSubs",
+        "Конфигурируемый путь (флаг -data-dir для dev-режима)",
+        "При отсутствии файлов — создаются с дефолтными значениями",
+        "Потокобезопасный доступ (sync.Mutex)"
+      ],
+      "priority": "high",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [1],
+      "notes": "PRD §9. config.json: setup_done, ap_secured, password_hash, port"
+    },
+    {
+      "id": 16,
+      "title": "Тесты: слой хранения данных",
+      "description": "Написать юнит-тесты для storage (задача #2): LoadConfig/SaveConfig, LoadServers/SaveServers, LoadSubs/SaveSubs. Тестировать: создание дефолтных файлов, чтение/запись, потокобезопасность, некорректный JSON.",
+      "acceptance_criteria": [
+        "Тесты для Config: создание дефолтного, сохранение, загрузка, невалидный JSON",
+        "Тесты для ServerList: пустой список, добавление, удаление, активный сервер",
+        "Тесты для SubList: добавление подписки, обновление даты",
+        "Тест конкурентного доступа (горутины)",
+        "go test ./... проходит"
+      ],
+      "priority": "high",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [2],
+      "notes": "Использовать t.TempDir() для изоляции"
+    },
+    {
+      "id": 3,
+      "title": "Middleware авторизации и онбординга",
+      "description": "Реализовать middleware: (1) если setup_done=false — редирект на /setup для любого GET кроме /setup и статики; (2) если setup_done=true — проверка session cookie, редирект на /login при отсутствии сессии. Session cookie: HttpOnly, SameSite=Strict, TTL 24ч.",
+      "acceptance_criteria": [
+        "При setup_done=false любой GET / редиректит на /setup",
+        "/setup доступен без авторизации при setup_done=false",
+        "При setup_done=true неавторизованные запросы → /login",
+        "Session cookie HttpOnly, SameSite=Strict, TTL 24ч",
+        "API-эндпоинты /api/* защищены авторизацией"
+      ],
+      "priority": "high",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [2],
+      "notes": "PRD §2.2, §7.2, §11"
+    },
+    {
+      "id": 17,
+      "title": "Тесты: middleware авторизации и онбординга",
+      "description": "Написать юнит-тесты для middleware (задача #3): httptest.NewServer, проверка редиректов, cookie, защита API.",
+      "acceptance_criteria": [
+        "Тест: setup_done=false → GET / редиректит на /setup",
+        "Тест: setup_done=false → GET /setup возвращает 200",
+        "Тест: setup_done=true, нет cookie → редирект на /login",
+        "Тест: setup_done=true, валидная сессия → 200",
+        "Тест: /api/* без сессии → 401/302",
+        "go test ./... проходит"
+      ],
+      "priority": "high",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [3],
+      "notes": "Использовать httptest.NewRequest и httptest.NewRecorder"
+    },
+    {
+      "id": 4,
+      "title": "Setup Wizard (онбординг)",
+      "description": "Реализовать setup.go и templates/setup.html: трёхшаговый wizard через HTMX. Шаг 1 — пароль панели (мин. 6 символов, bcrypt cost=12). Шаг 2 — пароль AP (мин. 8 символов WPA2, можно пропустить). Шаг 3 — сводка и кнопка «Войти в панель». Эндпоинты: GET /setup, POST /setup/password, POST /setup/ap-password, POST /setup/complete.",
+      "acceptance_criteria": [
+        "GET /setup отображает wizard",
+        "POST /setup/password сохраняет bcrypt-хэш в config.json",
+        "POST /setup/ap-password обновляет hostapd.conf и рестартит hostapd (или пропускает)",
+        "POST /setup/complete ставит setup_done=true, редирект на /login",
+        "Валидация: пароль панели ≥6, пароль AP ≥8 символов",
+        "Повторный онбординг невозможен при setup_done=true",
+        "HTMX переключает шаги без перезагрузки страницы"
+      ],
+      "priority": "high",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [2, 3, 10],
+      "notes": "PRD §2, §7.1"
+    },
+    {
+      "id": 18,
+      "title": "Тесты: Setup Wizard",
+      "description": "Написать юнит-тесты для setup (задача #4): валидация паролей, сохранение bcrypt, завершение онбординга, блокировка повторного.",
+      "acceptance_criteria": [
+        "Тест: POST /setup/password с коротким паролем → ошибка",
+        "Тест: POST /setup/password с валидным паролем → bcrypt сохранён",
+        "Тест: POST /setup/ap-password с коротким паролем → ошибка",
+        "Тест: POST /setup/complete → setup_done=true",
+        "Тест: GET /setup при setup_done=true → редирект",
+        "go test ./... проходит"
+      ],
+      "priority": "high",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [4],
+      "notes": ""
+    },
+    {
+      "id": 5,
+      "title": "Аутентификация (login/logout)",
+      "description": "Реализовать страницу /login, POST /auth/login (проверка bcrypt, задержка 2сек при неверном пароле, установка session cookie), POST /auth/logout (удаление cookie). Шаблон templates/login.html.",
+      "acceptance_criteria": [
+        "GET /login отображает форму",
+        "POST /auth/login проверяет пароль через bcrypt",
+        "Задержка 2 сек при неверном пароле",
+        "Успешный вход — session cookie + редирект на /",
+        "POST /auth/logout очищает сессию"
+      ],
+      "priority": "high",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [2, 3],
+      "notes": "PRD §7.2"
+    },
+    {
+      "id": 19,
+      "title": "Тесты: аутентификация",
+      "description": "Написать юнит-тесты для auth (задача #5): верный/неверный пароль, cookie, logout.",
+      "acceptance_criteria": [
+        "Тест: POST /auth/login с верным паролем → cookie + 302",
+        "Тест: POST /auth/login с неверным паролем → ошибка (проверить задержку ≥2сек)",
+        "Тест: POST /auth/logout → cookie удалён",
+        "go test ./... проходит"
+      ],
+      "priority": "high",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [5],
+      "notes": ""
+    },
+    {
+      "id": 6,
+      "title": "Управление системными сервисами",
+      "description": "Реализовать services.go: получение статуса сервисов (xray, redsocks, hostapd, dnsmasq, uap0) через systemctl, рестарт сервиса, получение внешнего и локального IP. Whitelist разрешённых сервисов. Эндпоинты: GET /api/status, POST /api/restart/{service}.",
+      "acceptance_criteria": [
+        "GET /api/status возвращает JSON со статусами всех сервисов и IP-адресами",
+        "POST /api/restart/{service} рестартит сервис через sudo systemctl",
+        "Whitelist: только xray, redsocks, hostapd, dnsmasq, uap0",
+        "Внешний IP получается через HTTP-запрос (ifconfig.me или аналог)",
+        "Локальный IP — через интерфейс wlan0"
+      ],
+      "priority": "high",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [1],
+      "notes": "PRD §7.4, §11 — whitelist команд"
+    },
+    {
+      "id": 20,
+      "title": "Тесты: управление сервисами",
+      "description": "Написать юнит-тесты для services (задача #6): whitelist, запрет неизвестных сервисов, формат ответа /api/status.",
+      "acceptance_criteria": [
+        "Тест: POST /api/restart/xray — разрешён (мок exec)",
+        "Тест: POST /api/restart/ssh — отклонён (не в whitelist)",
+        "Тест: GET /api/status — корректная структура JSON",
+        "Команды выполняются через интерфейс (для мокирования на macOS)",
+        "go test ./... проходит"
+      ],
+      "priority": "high",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [6],
+      "notes": "Системные команды мокировать через интерфейс CommandRunner"
+    },
+    {
+      "id": 7,
+      "title": "Парсинг и управление VLESS серверами",
+      "description": "Реализовать vless.go: парсинг vless:// URL (address, port, uuid, flow, security, sni, pbk, sid, fp), CRUD серверов в servers.json, активация сервера (перезапись /usr/local/etc/xray/config.json + рестарт xray). Эндпоинты: GET /api/vless, POST /api/vless, POST /api/vless/{id}/activate, DELETE /api/vless/{id}.",
+      "acceptance_criteria": [
+        "Парсинг vless:// URL со всеми параметрами",
+        "GET /api/vless — список серверов (имя, адрес, порт, активный)",
+        "POST /api/vless — добавить сервер из vless:// URL",
+        "POST /api/vless/{id}/activate — переключение + перезапись xray config + рестарт",
+        "DELETE /api/vless/{id} — удаление",
+        "Генерация корректного xray config.json при активации"
+      ],
+      "priority": "high",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [2, 6],
+      "notes": "PRD §7.5"
+    },
+    {
+      "id": 21,
+      "title": "Тесты: парсинг VLESS и управление серверами",
+      "description": "Написать юнит-тесты для vless (задача #7): парсинг URL, CRUD, генерация xray config.",
+      "acceptance_criteria": [
+        "Тест: парсинг валидного vless:// URL → корректная структура",
+        "Тест: парсинг URL с Reality (pbk, sid, fp)",
+        "Тест: парсинг невалидного URL → ошибка",
+        "Тест: добавление сервера → сохранён в servers.json",
+        "Тест: активация → корректный xray config.json сгенерирован",
+        "Тест: удаление → сервер удалён из списка",
+        "go test ./... проходит"
+      ],
+      "priority": "high",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [7],
+      "notes": "Критичная логика — парсинг должен быть покрыт таблицей тест-кейсов"
+    },
+    {
+      "id": 8,
+      "title": "Подписки Remnawave и HWID",
+      "description": "Реализовать sub.go: генерация HWID (SHA256 от MAC wlan0, первые 16 символов), загрузка подписки по URL с заголовками (x-hwid, x-device-os: Linux, x-device-model: RPi Zero W), парсинг полученных vless:// серверов, сохранение в subs.json. Эндпоинты: POST /api/sub, GET /api/hwid.",
+      "acceptance_criteria": [
+        "HWID генерируется из MAC wlan0 через SHA256[:16]",
+        "GET /api/hwid возвращает HWID",
+        "POST /api/sub загружает подписку с правильными заголовками",
+        "Полученные серверы парсятся и добавляются в servers.json",
+        "Сохраняется URL и дата обновления в subs.json"
+      ],
+      "priority": "medium",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [7],
+      "notes": "PRD §7.6"
+    },
+    {
+      "id": 22,
+      "title": "Тесты: подписки и HWID",
+      "description": "Написать юнит-тесты для sub (задача #8): генерация HWID, загрузка подписки (httptest mock сервер), парсинг серверов.",
+      "acceptance_criteria": [
+        "Тест: HWID из известного MAC → ожидаемый SHA256[:16]",
+        "Тест: загрузка подписки с httptest.Server → заголовки x-hwid, x-device-os, x-device-model отправлены",
+        "Тест: парсинг ответа подписки (base64 список vless://) → серверы добавлены",
+        "go test ./... проходит"
+      ],
+      "priority": "medium",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [8],
+      "notes": ""
+    },
+    {
+      "id": 9,
+      "title": "WiFi управление",
+      "description": "Реализовать wifi.go: сканирование WiFi (iwlist wlan0 scan), текущее подключение (iwgetid), подключение к сети (запись wpa_supplicant.conf + wpa_cli reconfigure). Эндпоинты: GET /api/wifi/scan, GET /api/wifi/status, POST /api/wifi/connect.",
+      "acceptance_criteria": [
+        "GET /api/wifi/scan — список сетей (SSID, уровень сигнала, тип безопасности)",
+        "GET /api/wifi/status — текущая подключённая сеть",
+        "POST /api/wifi/connect — подключение (SSID + пароль)",
+        "Запись в /etc/wpa_supplicant/wpa_supplicant.conf",
+        "Реконфигурация через wpa_cli reconfigure"
+      ],
+      "priority": "medium",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [1],
+      "notes": "PRD §7.7"
+    },
+    {
+      "id": 23,
+      "title": "Тесты: WiFi управление",
+      "description": "Написать юнит-тесты для wifi (задача #9): парсинг вывода iwlist scan, генерация wpa_supplicant.conf.",
+      "acceptance_criteria": [
+        "Тест: парсинг вывода iwlist scan → корректный список сетей (SSID, сигнал, безопасность)",
+        "Тест: генерация wpa_supplicant.conf → валидный формат с SSID и PSK",
+        "Тест: парсинг iwgetid → текущий SSID",
+        "go test ./... проходит"
+      ],
+      "priority": "medium",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [9],
+      "notes": "Мокировать вывод команд через строковые fixtures"
+    },
+    {
+      "id": 10,
+      "title": "Управление AP (hostapd)",
+      "description": "Реализовать ap.go: чтение/изменение hostapd.conf (SSID, wpa_passphrase), рестарт hostapd. Используется в Setup Wizard (задача #4) и в настройках (задача #14).",
+      "acceptance_criteria": [
+        "Чтение текущих параметров из hostapd.conf",
+        "Установка/удаление wpa_passphrase",
+        "Рестарт hostapd после изменений",
+        "Обновление ap_secured в config.json"
+      ],
+      "priority": "medium",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [2],
+      "notes": "PRD §2.4, используется задачами #4 и #14"
+    },
+    {
+      "id": 24,
+      "title": "Тесты: управление AP",
+      "description": "Написать юнит-тесты для ap (задача #10): парсинг hostapd.conf, установка/удаление пароля.",
+      "acceptance_criteria": [
+        "Тест: парсинг hostapd.conf → SSID, наличие wpa_passphrase",
+        "Тест: установка wpa_passphrase → файл обновлён, ap_secured=true",
+        "Тест: удаление wpa_passphrase → файл обновлён, ap_secured=false",
+        "go test ./... проходит"
+      ],
+      "priority": "medium",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [10],
+      "notes": "Использовать tmpfile для hostapd.conf"
+    },
+    {
+      "id": 11,
+      "title": "Просмотр логов сервисов",
+      "description": "Реализовать эндпоинт GET /api/logs/{service}: последние 100 строк через journalctl -u {service} -n 100. Whitelist сервисов. Подсветка ERROR/WARNING на фронтенде.",
+      "acceptance_criteria": [
+        "GET /api/logs/{service} возвращает последние 100 строк",
+        "Whitelist: только разрешённые сервисы",
+        "Формат: массив строк или plain text"
+      ],
+      "priority": "low",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [6],
+      "notes": "PRD §7.8"
+    },
+    {
+      "id": 12,
+      "title": "Основной шаблон — Simple Mode",
+      "description": "Реализовать templates/index.html — Simple Mode: статус VPN (индикатор + внешний IP), дропдаун выбора сервера + кнопка переключить, текущая WiFi + кнопка сменить, кнопки перезапуска VPN и обновления подписки. Tailwind CDN, HTMX для динамики.",
+      "acceptance_criteria": [
+        "Отображается статус VPN (подключён/отключён) и внешний IP",
+        "Дропдаун со списком серверов, кнопка переключить",
+        "Текущая WiFi сеть, кнопка сменить",
+        "Кнопки: перезапустить VPN, обновить подписку",
+        "Tailwind CDN для стилей",
+        "HTMX для обновления данных без перезагрузки"
+      ],
+      "priority": "high",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [5, 6, 7],
+      "notes": "PRD §3.1, §7.3"
+    },
+    {
+      "id": 13,
+      "title": "Основной шаблон — Advanced Mode",
+      "description": "Расширить templates/index.html секциями Advanced Mode: дашборд (статусы всех сервисов, IP), управление VLESS (список, добавление vless:// URL, удаление), подписки (URL, HWID, обновление), WiFi (сканирование, подключение, сигнал), сервисы (рестарт), логи (100 строк, подсветка ERROR/WARNING). Тоггл Simple/Advanced в шапке, CSS класс advanced-only, состояние в localStorage, HTMX polling 30сек для дашборда.",
+      "acceptance_criteria": [
+        "Тоггл Simple/Advanced в шапке, состояние в localStorage",
+        "CSS класс advanced-only скрывает расширенные секции",
+        "Дашборд: статусы сервисов, IP, кнопки рестарта",
+        "VLESS: список, добавление, удаление, активация",
+        "Подписки: URL, HWID, обновление",
+        "WiFi: сканирование, сигнал, подключение",
+        "Логи: 100 строк, подсветка ERROR/WARNING",
+        "HTMX polling каждые 30 сек для дашборда"
+      ],
+      "priority": "medium",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [12],
+      "notes": "PRD §3.2, §3.3, §7.4-§7.8"
+    },
+    {
+      "id": 14,
+      "title": "Настройки (смена паролей)",
+      "description": "Реализовать POST /api/settings/panel-password (смена пароля панели, требует текущий пароль), POST /api/settings/ap-password (смена/удаление пароля AP, требует текущий пароль панели). Секция настроек в Advanced Mode.",
+      "acceptance_criteria": [
+        "POST /api/settings/panel-password — валидация текущего, сохранение нового bcrypt",
+        "POST /api/settings/ap-password — изменение/удаление пароля AP",
+        "Оба эндпоинта требуют текущий пароль панели",
+        "Обновление ap_secured в config.json при изменении AP",
+        "UI-секция в Advanced Mode"
+      ],
+      "priority": "low",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [5, 10, 13],
+      "notes": "PRD §2.5, §7.9"
+    },
+    {
+      "id": 25,
+      "title": "Тесты: настройки (смена паролей)",
+      "description": "Написать юнит-тесты для settings (задача #14): смена пароля панели, смена/удаление пароля AP.",
+      "acceptance_criteria": [
+        "Тест: смена пароля панели с верным текущим → новый bcrypt сохранён",
+        "Тест: смена пароля панели с неверным текущим → ошибка",
+        "Тест: смена пароля AP → hostapd.conf обновлён, ap_secured=true",
+        "Тест: удаление пароля AP → ap_secured=false",
+        "go test ./... проходит"
+      ],
+      "priority": "low",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [14],
+      "notes": ""
+    },
+    {
+      "id": 15,
+      "title": "Деплой: systemd unit и финальный Makefile",
+      "description": "Создать файл rpi-panel.service для systemd, финализировать Makefile (build, deploy, install-service). Документировать деплой в README.",
+      "acceptance_criteria": [
+        "rpi-panel.service корректен (After=network.target uap0.service, Restart=always)",
+        "make build — кросс-компиляция",
+        "make deploy — SCP + рестарт на RPi",
+        "README обновлён с инструкцией деплоя"
+      ],
+      "priority": "low",
+      "status": "todo",
+      "assigned_to": "worker",
+      "created_at": "2026-03-24",
+      "updated_at": "2026-03-24",
+      "depends_on": [1],
+      "notes": "PRD §10"
+    }
+  ]
 }
