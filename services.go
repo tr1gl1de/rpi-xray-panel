@@ -227,3 +227,33 @@ func (h *ServiceHandler) HandleLogs(w http.ResponseWriter, r *http.Request) {
 		"lines":   lines,
 	})
 }
+
+// HandleReboot handles POST /api/system/reboot.
+func (h *ServiceHandler) HandleReboot(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "rebooting"})
+
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		h.Runner.Run("sudo", "reboot")
+	}()
+}
+
+// HandleShutdown handles POST /api/system/shutdown.
+func (h *ServiceHandler) HandleShutdown(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "shutting down"})
+
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		h.Runner.Run("sudo", "shutdown", "-h", "now")
+	}()
+}

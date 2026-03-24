@@ -89,6 +89,8 @@ func main() {
 	mux.HandleFunc("/api/status", svcHandler.HandleStatus)
 	mux.HandleFunc("/api/restart/", svcHandler.HandleRestart)
 	mux.HandleFunc("/api/logs/", svcHandler.HandleLogs)
+	mux.HandleFunc("/api/system/reboot", svcHandler.HandleReboot)
+	mux.HandleFunc("/api/system/shutdown", svcHandler.HandleShutdown)
 
 	// API: VLESS
 	pingHandler := &PingHandler{Store: store, Runner: cmdRunner, DataDir: *dataDir}

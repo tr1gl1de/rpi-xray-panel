@@ -234,6 +234,12 @@
                 <button class="btn btn-primary" onclick="updateSubscription(this)">
                     Обновить подписку
                 </button>
+                <button class="btn btn-orange" onclick="confirmAction('reboot', 'Перезагрузить устройство?', this)">
+                    Перезагрузить
+                </button>
+                <button class="btn btn-danger" onclick="confirmAction('shutdown', 'Выключить устройство? Для включения потребуется физический доступ.', this)" style="background:#dc2626;color:#fff;">
+                    Выключить
+                </button>
             </div>
         </section>
 
@@ -410,6 +416,21 @@
                     document.getElementById('log-output').textContent = 'Ошибка загрузки логов';
                 })
                 .finally(() => { btn.disabled = false; spinEl.style.display = ''; });
+        }
+
+        function confirmAction(action, message, btn) {
+            if (!confirm(message)) return;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner spinner-light" style="display:inline-block"></span> ' + (action === 'reboot' ? 'Перезагрузка...' : 'Выключение...');
+            fetch('/api/system/' + action, {method: 'POST'})
+                .then(() => {
+                    if (action === 'reboot') {
+                        btn.textContent = 'Устройство перезагружается...';
+                    } else {
+                        btn.textContent = 'Устройство выключается...';
+                    }
+                })
+                .catch(() => { btn.disabled = false; btn.textContent = action === 'reboot' ? 'Перезагрузить' : 'Выключить'; });
         }
 
         function activateServer() {
