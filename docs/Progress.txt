@@ -85,3 +85,17 @@
   #14 settings.go (panel-password + ap-password), #25 settings_test.go
 [2026-03-24 06:00] [WORKER] main.go — все handlers подключены, middleware обёрнут
 [2026-03-24 06:00] [ARCHITECT] ВСЕ 25 ЗАДАЧ ВЫПОЛНЕНЫ. go build ✓, go test ✓ (4.6s)
+
+[2026-03-24 07:00] [WORKER] Makefile — RPI_HOST заменён на rpi_local (SSH alias из ~/.ssh/config)
+[2026-03-24 07:00] [WORKER] Makefile — deploy теперь останавливает сервис перед SCP (файл блокируется)
+[2026-03-24 07:10] [WORKER] main.go — добавлен флаг --reset для сброса пароля панели
+[2026-03-24 07:20] [WORKER] services.go — uap0 убран из whitelist (не systemd-сервис)
+[2026-03-24 08:00] [WORKER] Фронтенд: HTMX-фрагменты вместо сырого JSON (status, server-list, wifi, hwid, settings)
+[2026-03-24 08:10] [WORKER] Фронтенд: селектор серверов (дропдаун) в Simple Mode
+[2026-03-24 08:20] [WORKER] Фронтенд: мониторинг соединения (ping каждые 5сек, красный баннер при disconnect)
+[2026-03-24 08:30] [WORKER] Фронтенд: inline CSS fallback (UI работает без Tailwind CDN / без интернета)
+[2026-03-24 08:30] [WORKER] Фронтенд: лоадеры/спиннеры на всех кнопках и секциях
+[2026-03-24 09:00] [WORKER] ping.go — тест латентности серверов через SOCKS5 (TTFB на gstatic.com/generate_204)
+[2026-03-24 09:00] [WORKER] ping.go — активный сервер через :1080, неактивные через temp xray
+[2026-03-24 09:00] [WORKER] Эндпоинты: GET /api/vless/{id}/ping, GET /api/vless/ping-all
+[2026-03-24 09:10] [ARCHITECT] Обновлена документация: PRD (§7.10-7.12, scope, структура, API), CLAUDE.md, Progress.txt

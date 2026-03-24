@@ -2,4 +2,7 @@ module github.com/maxim/rpi-xray-panel
 
 go 1.26.1
 
-require golang.org/x/crypto v0.49.0 // indirect
+require (
+	golang.org/x/crypto v0.49.0 // indirect
+	golang.org/x/net v0.52.0 // indirect
+)

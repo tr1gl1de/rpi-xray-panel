@@ -165,17 +165,27 @@ RPi Panel управляет конфигурацией xray (`/usr/local/etc/xr
 
 ```
 rpi-panel/
-├── main.go          # HTTP сервер, роутинг, middleware авторизации и онбординга
-├── setup.go         # логика Setup Wizard, запись паролей, настройка AP
-├── services.go      # systemctl статус/рестарт, IP
-├── vless.go         # парсинг vless://, управление xray config
-├── wifi.go          # сканирование, wpa_supplicant
-├── sub.go           # sub-ссылки, HWID
+├── main.go          # HTTP сервер, роутинг, инициализация всех handler'ов
+├── auth.go          # middleware авторизации/онбординга, SessionStore
+├── login.go         # login/logout handlers, bcrypt
+├── setup.go         # Setup Wizard (3 шага, HTMX)
+├── storage.go       # JSON storage (config, servers, subs), sync.Mutex
+├── services.go      # systemctl статус/рестарт, IP, логи, CommandRunner
+├── vless.go         # парсинг vless://, CRUD серверов, генерация xray config
+├── ping.go          # тест латентности серверов через SOCKS5
+├── wifi.go          # сканирование, wpa_supplicant, подключение
+├── sub.go           # sub-ссылки Remnawave, HWID
 ├── ap.go            # управление hostapd.conf, пароль AP
+├── settings.go      # смена паролей панели и AP
+├── htmx.go          # helpers для HTMX (isHTMX, renderFragment)
 ├── go.mod
+├── Makefile         # build, deploy, install-service
+├── rpi-panel.service # systemd unit
 └── templates/
-    ├── index.html   # основная страница (Simple + Advanced)
-    └── setup.html   # Setup Wizard
+    ├── index.html     # основная страница (Simple + Advanced)
+    ├── setup.html     # Setup Wizard
+    ├── login.html     # страница входа
+    └── fragments.html # HTMX фрагменты (status, server-list, wifi, ping)
 ```
 
 ---
@@ -243,6 +253,28 @@ rpi-panel/
 - Смена пароля панели (требует текущий пароль)
 - Смена пароля AP / сделать открытой (требует текущий пароль)
 
+### 7.10 Тест латентности серверов (Advanced)
+
+- Тестирование отдельного сервера или всех серверов одновременно
+- Метод: HTTP GET через SOCKS5-прокси на `http://www.gstatic.com/generate_204`, замер TTFB
+- Активный сервер тестируется через работающий xray (`:1080`)
+- Неактивные серверы — через временный xray на случайном порту (запуск → тест → kill)
+- Результат: латентность в мс, цветовая индикация (зелёный ≤200ms, жёлтый ≤500ms, красный >500ms, timeout)
+- На RPi Zero W неактивные серверы тестируются последовательно (экономия RAM)
+
+### 7.11 Мониторинг соединения
+
+- Клиент (браузер) каждые 5 секунд проверяет доступность панели
+- При потере связи — красный баннер вверху страницы: «Соединение потеряно. Возможно, изменился пароль AP — переподключитесь к сети.»
+- При восстановлении — баннер исчезает автоматически
+
+### 7.12 Offline-режим UI
+
+- Все критические CSS встроены inline в шаблоны
+- Tailwind CDN подгружается как опциональное улучшение
+- При отсутствии интернета UI полностью функционален
+- Лоадеры/спиннеры на всех кнопках и секциях с загрузкой
+
 ---
 
 ## 8. API эндпоинты
@@ -268,6 +300,9 @@ rpi-panel/
 | GET | `/api/wifi/status` | Текущая WiFi сеть |
 | POST | `/api/wifi/connect` | Подключиться к сети |
 | GET | `/api/logs/{service}` | Логи сервиса |
+| GET | `/api/vless/selector` | Селектор серверов (HTML фрагмент) |
+| GET | `/api/vless/{id}/ping` | Тест латентности сервера (TTFB через SOCKS5) |
+| GET | `/api/vless/ping-all` | Тест латентности всех серверов |
 | POST | `/api/settings/panel-password` | Сменить пароль панели |
 | POST | `/api/settings/ap-password` | Сменить/убрать пароль AP |
 
@@ -364,6 +399,10 @@ WantedBy=multi-user.target
 | Смена WiFi | ✅ v1.0 |
 | Рестарт сервисов + логи | ✅ v1.0 |
 | Смена паролей после онбординга | ✅ v1.0 |
+| Тест латентности серверов (ping) | ✅ v1.0 |
+| Мониторинг соединения в браузере | ✅ v1.0 |
+| Offline-режим UI (без CDN) | ✅ v1.0 |
+| Сброс пароля (`--reset`) | ✅ v1.0 |
 | HTTPS | ❌ v1.1 |
 | Realtime логи (WebSocket) | ❌ v1.1 |
 | Поддержка VMess/Trojan | ❌ v1.1 |

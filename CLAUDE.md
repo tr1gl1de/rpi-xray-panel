@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-rpi-xray-panel — панель управления рентгеновским аппаратом на Raspberry Pi. Подробная спецификация — `docs/rpi-panel-prd-v3.docx` (PRD).
+rpi-xray-panel — веб-панель управления Xray VPN на Raspberry Pi Zero W. Подробная спецификация — `docs/rpi-panel-prd.md` (PRD).
 
 ## Language & Toolchain
 
@@ -13,6 +13,8 @@ rpi-xray-panel — панель управления рентгеновским 
 - **Test:** `go test ./...`
 - **Single test:** `go test -run TestName ./path/to/package`
 - **Lint:** `go vet ./...` (add `golangci-lint run` if configured)
+- **Cross-compile:** `GOOS=linux GOARCH=arm GOARM=6 go build -o rpi-panel ./...`
+- **Deploy:** `make deploy` (build + SCP + systemctl restart через SSH alias `rpi_local`)
 
 ## Git Workflow
 
@@ -38,7 +40,7 @@ rpi-xray-panel — панель управления рентгеновским 
 
 - `docs/tasks.json` — актуальный список задач, статусы, зависимости
 - `docs/Progress.txt` — хронологический лог всех действий и решений
-- `docs/rpi-panel-prd-v3.docx` — PRD, источник истины по функциональности
+- `docs/rpi-panel-prd.md` — PRD, источник истины по функциональности
 
 Перед началом работы всегда читай `docs/tasks.json` и `docs/Progress.txt` чтобы понять текущее состояние проекта.
 

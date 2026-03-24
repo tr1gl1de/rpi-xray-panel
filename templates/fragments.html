@@ -1,3 +1,53 @@
+{{define "ping-result"}}
+{{if ge .LatencyMs 0}}
+<span class="text-xs font-mono {{if le .LatencyMs 200}}text-green-600{{else if le .LatencyMs 500}}text-yellow-600{{else}}text-red-600{{end}}">
+    {{.LatencyMs}}ms
+</span>
+{{else}}
+<span class="text-xs font-mono text-red-600">timeout</span>
+{{end}}
+{{end}}
+
+{{define "ping-all-results"}}
+{{if .Results}}
+<div class="space-y-2">
+    {{range $i, $r := .Results}}
+    <div class="flex items-center justify-between p-3 rounded border {{if eq $i $.ActiveIdx}}border-blue-500 bg-blue-50{{else}}border-gray-200{{end}}">
+        <div class="flex items-center gap-3">
+            {{if eq $i $.ActiveIdx}}
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+            {{else}}
+            <span class="w-2.5 h-2.5 rounded-full bg-gray-300"></span>
+            {{end}}
+            <div>
+                <span class="font-medium text-sm">{{$r.Name}}</span>
+                {{if ge $r.LatencyMs 0}}
+                <span class="text-xs font-mono ml-2 {{if le $r.LatencyMs 200}}text-green-600{{else if le $r.LatencyMs 500}}text-yellow-600{{else}}text-red-600{{end}}">
+                    {{$r.LatencyMs}}ms
+                </span>
+                {{else}}
+                <span class="text-xs font-mono ml-2 text-red-600">timeout</span>
+                {{end}}
+            </div>
+        </div>
+        <div class="flex gap-2">
+            {{if ne $i $.ActiveIdx}}
+            <button class="btn btn-primary text-xs px-3 py-1"
+                hx-post="/api/vless/{{$r.ServerID}}/activate" hx-target="#server-list" hx-swap="innerHTML">
+                Подключить
+            </button>
+            {{else}}
+            <span class="text-xs text-blue-600 font-medium px-3 py-1">Активен</span>
+            {{end}}
+        </div>
+    </div>
+    {{end}}
+</div>
+{{else}}
+<p class="text-gray-400 text-sm">Нет серверов</p>
+{{end}}
+{{end}}
+
 {{define "server-selector"}}
 {{if .Servers}}
 <div class="flex items-center gap-3">
@@ -92,19 +142,27 @@
             {{end}}
             <div>
                 <div class="font-medium text-sm">{{$s.Name}}</div>
-                <div class="text-xs text-gray-500 font-mono">{{$s.Address}}:{{$s.Port}}</div>
+                <div class="text-xs text-gray-500 font-mono">{{$s.Address}}:{{$s.Port}}
+                    <span id="ping-{{$s.ID}}"></span>
+                </div>
             </div>
         </div>
         <div class="flex gap-2">
+            <button class="advanced-only text-xs btn btn-secondary px-2 py-1"
+                hx-get="/api/vless/{{$s.ID}}/ping" hx-target="#ping-{{$s.ID}}" hx-swap="innerHTML"
+                hx-disabled-elt="this" hx-indicator="find .spinner">
+                <span class="spinner htmx-indicator"></span>
+                Пинг
+            </button>
             {{if ne $i $.ActiveIdx}}
-            <button class="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+            <button class="text-xs btn btn-primary px-3 py-1"
                 hx-post="/api/vless/{{$s.ID}}/activate" hx-target="#server-list" hx-swap="innerHTML">
                 Подключить
             </button>
             {{else}}
             <span class="text-xs text-blue-600 font-medium px-3 py-1">Активен</span>
             {{end}}
-            <button class="advanced-only text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200"
+            <button class="advanced-only text-xs btn btn-danger px-2 py-1"
                 hx-delete="/api/vless/{{$s.ID}}" hx-target="#server-list" hx-swap="innerHTML"
                 hx-confirm="Удалить сервер {{$s.Name}}?">
                 ✕

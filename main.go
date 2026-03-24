@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"strings"
 )
 
 //go:embed templates/*
@@ -90,6 +91,8 @@ func main() {
 	mux.HandleFunc("/api/logs/", svcHandler.HandleLogs)
 
 	// API: VLESS
+	pingHandler := &PingHandler{Store: store, Runner: cmdRunner, DataDir: *dataDir}
+	mux.HandleFunc("/api/vless/ping-all", pingHandler.HandlePingAll)
 	mux.HandleFunc("/api/vless/selector", vlessHandler.HandleSelector)
 	mux.HandleFunc("/api/vless", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -102,7 +105,9 @@ func main() {
 		}
 	})
 	mux.HandleFunc("/api/vless/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodDelete {
+		if strings.HasSuffix(r.URL.Path, "/ping") && r.Method == http.MethodGet {
+			pingHandler.HandlePing(w, r)
+		} else if r.Method == http.MethodDelete {
 			vlessHandler.HandleDelete(w, r)
 		} else if r.Method == http.MethodPost {
 			vlessHandler.HandleActivate(w, r)
