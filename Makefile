@@ -1,5 +1,5 @@
 BINARY=rpi-panel
-RPI_HOST=max@stackplayer.local
+RPI_HOST=rpi_local
 RPI_PATH=~/rpi-panel
 
 .PHONY: build deploy test clean install-service
@@ -14,8 +14,9 @@ test:
 	go test ./...
 
 deploy: build
+	ssh $(RPI_HOST) "sudo systemctl stop rpi-panel 2>/dev/null; true"
 	scp $(BINARY) $(RPI_HOST):$(RPI_PATH)
-	ssh $(RPI_HOST) "sudo systemctl restart rpi-panel"
+	ssh $(RPI_HOST) "sudo systemctl start rpi-panel"
 
 install-service:
 	scp rpi-panel.service $(RPI_HOST):/tmp/rpi-panel.service

@@ -44,7 +44,7 @@
         <!-- Server Selection (Simple + Advanced) -->
         <section class="bg-white rounded-lg shadow p-6">
             <h2 class="text-lg font-semibold mb-4">Сервер</h2>
-            <div id="server-list" hx-get="/api/vless" hx-trigger="load" hx-swap="innerHTML">
+            <div id="server-selector" hx-get="/api/vless/selector" hx-trigger="load" hx-swap="innerHTML">
                 <p class="text-gray-400">Загрузка...</p>
             </div>
         </section>
@@ -80,14 +80,6 @@
         </section>
 
         <!-- ========== ADVANCED MODE SECTIONS ========== -->
-
-        <!-- Dashboard (Advanced) -->
-        <section class="advanced-only bg-white rounded-lg shadow p-6">
-            <h2 class="text-lg font-semibold mb-4">Дашборд</h2>
-            <div id="dashboard-services" hx-get="/api/status" hx-trigger="load, every 30s" hx-swap="innerHTML">
-                <p class="text-gray-400">Загрузка...</p>
-            </div>
-        </section>
 
         <!-- VLESS Management (Advanced) -->
         <section class="advanced-only bg-white rounded-lg shadow p-6">
@@ -125,25 +117,10 @@
                 <p class="text-gray-400">Загрузка...</p>
             </div>
             <div class="mt-4">
-                <h3 class="text-sm font-medium mb-2">Подключиться</h3>
-                <form hx-post="/api/wifi/connect" hx-target="#wifi-connect-result" hx-swap="innerHTML" class="flex gap-2">
-                    <input type="text" name="ssid" placeholder="SSID" class="border rounded px-3 py-2 text-sm" required>
-                    <input type="password" name="password" placeholder="Пароль" class="border rounded px-3 py-2 text-sm">
-                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm">Подключить</button>
-                </form>
-                <div id="wifi-connect-result" class="mt-2"></div>
-            </div>
-        </section>
-
-        <!-- Service Restart (Advanced) -->
-        <section class="advanced-only bg-white rounded-lg shadow p-6">
-            <h2 class="text-lg font-semibold mb-4">Сервисы</h2>
-            <div class="flex flex-wrap gap-2">
-                <button class="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600" hx-post="/api/restart/xray" hx-swap="none">xray</button>
-                <button class="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600" hx-post="/api/restart/redsocks" hx-swap="none">redsocks</button>
-                <button class="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600" hx-post="/api/restart/hostapd" hx-swap="none">hostapd</button>
-                <button class="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600" hx-post="/api/restart/dnsmasq" hx-swap="none">dnsmasq</button>
-                <button class="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600" hx-post="/api/restart/uap0" hx-swap="none">uap0</button>
+                <button class="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300 text-sm"
+                    hx-get="/api/wifi/scan" hx-target="#wifi-advanced" hx-swap="innerHTML">
+                    Обновить список
+                </button>
             </div>
         </section>
 
@@ -191,6 +168,25 @@
 
     </main>
 
+    <!-- WiFi Connect Modal -->
+    <div id="wifi-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full mx-4">
+            <h3 class="text-lg font-semibold mb-4">Подключение к <span id="wifi-modal-ssid" class="text-blue-600"></span></h3>
+            <form id="wifi-connect-form" class="space-y-3">
+                <input type="hidden" id="wifi-modal-ssid-input" name="ssid">
+                <div id="wifi-modal-password-field">
+                    <label class="block text-sm font-medium mb-1">Пароль</label>
+                    <input type="password" id="wifi-modal-password" name="password" class="w-full border rounded px-3 py-2 text-sm">
+                </div>
+                <div id="wifi-modal-result"></div>
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 bg-blue-600 text-white rounded py-2 text-sm hover:bg-blue-700">Подключить</button>
+                    <button type="button" onclick="closeWifiModal()" class="flex-1 bg-gray-200 text-gray-700 rounded py-2 text-sm hover:bg-gray-300">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         function toggleMode() {
             const advanced = document.getElementById('mode-toggle').checked;
@@ -231,8 +227,58 @@
                 });
         }
 
+        function activateServer() {
+            const select_ = document.getElementById('server-select');
+            if (!select_) return;
+            const id = select_.value;
+            fetch('/api/vless/' + id + '/activate', {method: 'POST'})
+                .then(r => {
+                    if (r.ok) {
+                        htmx.ajax('GET', '/api/vless/selector', '#server-selector');
+                        htmx.ajax('GET', '/api/status', '#status-data');
+                    }
+                });
+        }
+
+        function connectWifi(ssid, security) {
+            document.getElementById('wifi-modal-ssid').textContent = ssid;
+            document.getElementById('wifi-modal-ssid-input').value = ssid;
+            const pwField = document.getElementById('wifi-modal-password-field');
+            if (security === 'open') {
+                pwField.classList.add('hidden');
+            } else {
+                pwField.classList.remove('hidden');
+            }
+            document.getElementById('wifi-modal-password').value = '';
+            document.getElementById('wifi-modal-result').innerHTML = '';
+            document.getElementById('wifi-modal').classList.remove('hidden');
+        }
+
+        function closeWifiModal() {
+            document.getElementById('wifi-modal').classList.add('hidden');
+        }
+
+        document.getElementById('wifi-connect-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const ssid = document.getElementById('wifi-modal-ssid-input').value;
+            const password = document.getElementById('wifi-modal-password').value;
+            const result = document.getElementById('wifi-modal-result');
+            result.innerHTML = '<p class="text-gray-500 text-sm">Подключение...</p>';
+            fetch('/api/wifi/connect', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ssid, password})
+            }).then(r => {
+                if (r.ok) {
+                    result.innerHTML = '<p class="text-green-600 text-sm">Подключено!</p>';
+                    setTimeout(() => { closeWifiModal(); location.reload(); }, 1500);
+                } else {
+                    r.text().then(t => { result.innerHTML = '<p class="text-red-600 text-sm">' + t + '</p>'; });
+                }
+            }).catch(() => { result.innerHTML = '<p class="text-red-600 text-sm">Ошибка подключения</p>'; });
+        });
+
         function updateSubscription() {
-            // Trigger reload of subscriptions
             fetch('/api/sub', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'url='})
                 .then(() => location.reload())
                 .catch(() => alert('Ошибка обновления подписки'));
@@ -243,6 +289,30 @@
             div.textContent = text;
             return div.innerHTML;
         }
+
+        // Connection monitor — ping server every 5s, show banner on disconnect
+        (function() {
+            const banner = document.createElement('div');
+            banner.id = 'conn-banner';
+            banner.className = 'fixed top-0 left-0 right-0 bg-red-600 text-white text-center py-3 text-sm font-medium z-50 hidden';
+            banner.innerHTML = 'Соединение потеряно. Возможно, изменился пароль AP — переподключитесь к сети.';
+            document.body.prepend(banner);
+
+            let wasOffline = false;
+            setInterval(() => {
+                fetch('/api/status', {method: 'HEAD', cache: 'no-store'})
+                    .then(r => {
+                        if (r.ok && wasOffline) {
+                            wasOffline = false;
+                            banner.classList.add('hidden');
+                        }
+                    })
+                    .catch(() => {
+                        wasOffline = true;
+                        banner.classList.remove('hidden');
+                    });
+            }, 5000);
+        })();
     </script>
 </body>
 </html>

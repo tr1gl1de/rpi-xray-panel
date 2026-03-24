@@ -119,6 +119,20 @@ type VLESSHandler struct {
 	XrayConfig string // path to xray config.json
 }
 
+// HandleSelector returns the server selector HTML fragment (GET /api/vless/selector).
+func (h *VLESSHandler) HandleSelector(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	sl, err := h.Store.LoadServers()
+	if err != nil {
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	renderFragment(w, "server-selector", sl)
+}
+
 // HandleList returns the server list (GET /api/vless).
 func (h *VLESSHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -130,6 +144,12 @@ func (h *VLESSHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
+
+	if isHTMX(r) {
+		renderFragment(w, "server-list", sl)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(sl)
 }
@@ -158,6 +178,11 @@ func (h *VLESSHandler) HandleAdd(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.Store.SaveServers(sl); err != nil {
 		http.Error(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMX(r) {
+		renderFragment(w, "server-list", sl)
 		return
 	}
 
@@ -224,6 +249,12 @@ func (h *VLESSHandler) HandleActivate(w http.ResponseWriter, r *http.Request) {
 		h.Runner.Run("sudo", "systemctl", "restart", "xray")
 	}
 
+	if isHTMX(r) {
+		updated, _ := h.Store.LoadServers()
+		renderFragment(w, "server-list", updated)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "activated"})
 }
@@ -271,6 +302,11 @@ func (h *VLESSHandler) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	sl.Servers = newServers
 	if err := h.Store.SaveServers(sl); err != nil {
 		http.Error(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMX(r) {
+		renderFragment(w, "server-list", sl)
 		return
 	}
 

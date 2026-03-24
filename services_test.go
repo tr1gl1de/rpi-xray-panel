@@ -186,7 +186,7 @@ func TestHandleRestart_MethodNotAllowed(t *testing.T) {
 }
 
 func TestWhitelist_AllServices(t *testing.T) {
-	expected := []string{"xray", "redsocks", "hostapd", "dnsmasq", "uap0"}
+	expected := []string{"xray", "redsocks", "hostapd", "dnsmasq"}
 	for _, svc := range expected {
 		if !AllowedServices[svc] {
 			t.Errorf("expected %q to be in AllowedServices", svc)

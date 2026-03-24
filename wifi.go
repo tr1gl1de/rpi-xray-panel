@@ -65,6 +65,37 @@ func (h *WiFiHandler) HandleScan(w http.ResponseWriter, r *http.Request) {
 
 	networks := ParseIwlistScan(string(output))
 
+	if isHTMX(r) {
+		type netWithPercent struct {
+			SSID          string
+			Signal        int
+			SignalPercent int
+			Security      string
+		}
+		var nets []netWithPercent
+		for _, n := range networks {
+			pct := 0
+			if n.Signal != 0 {
+				// dBm to percent: -30 = 100%, -90 = 0%
+				pct = (n.Signal + 90) * 100 / 60
+				if pct > 100 {
+					pct = 100
+				}
+				if pct < 0 {
+					pct = 0
+				}
+			}
+			nets = append(nets, netWithPercent{
+				SSID:          n.SSID,
+				Signal:        n.Signal,
+				SignalPercent: pct,
+				Security:      n.Security,
+			})
+		}
+		renderFragment(w, "wifi-scan", map[string]interface{}{"Networks": nets})
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(networks)
 }
@@ -88,6 +119,11 @@ func (h *WiFiHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	status := WiFiStatus{
 		Connected: ssid != "",
 		SSID:      ssid,
+	}
+
+	if isHTMX(r) {
+		renderFragment(w, "wifi-status", status)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")

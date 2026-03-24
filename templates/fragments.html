@@ -1,0 +1,200 @@
+{{define "server-selector"}}
+{{if .Servers}}
+<div class="flex items-center gap-3">
+    <select id="server-select" class="flex-1 border rounded px-3 py-2 text-sm">
+        {{range $i, $s := .Servers}}
+        <option value="{{$s.ID}}" {{if eq $i $.ActiveIdx}}selected{{end}}>
+            {{$s.Name}} — {{$s.Address}}:{{$s.Port}}
+        </option>
+        {{end}}
+    </select>
+    <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm whitespace-nowrap"
+        onclick="activateServer()">
+        Переключить
+    </button>
+</div>
+{{if ge .ActiveIdx 0}}
+<p class="text-xs text-gray-500 mt-2">Активен: <strong>{{(index .Servers .ActiveIdx).Name}}</strong></p>
+{{else}}
+<p class="text-xs text-gray-400 mt-2">Нет активного сервера</p>
+{{end}}
+{{else}}
+<p class="text-gray-400 text-sm">Нет серверов. Добавьте через vless:// ссылку или подписку.</p>
+{{end}}
+{{end}}
+
+{{define "status"}}
+<div class="space-y-3">
+    <div class="flex items-center gap-3">
+        {{if .VPNActive}}
+        <span class="inline-block w-3 h-3 rounded-full bg-green-500"></span>
+        <span class="text-green-700 font-medium">VPN подключён</span>
+        {{else}}
+        <span class="inline-block w-3 h-3 rounded-full bg-red-500"></span>
+        <span class="text-red-700 font-medium">VPN отключён</span>
+        {{end}}
+    </div>
+    <div class="grid grid-cols-2 gap-2 text-sm">
+        <span class="text-gray-500">Внешний IP:</span>
+        <span class="font-mono">{{if .ExternalIP}}{{.ExternalIP}}{{else}}—{{end}}</span>
+        <span class="text-gray-500">Локальный IP:</span>
+        <span class="font-mono">{{if .LocalIP}}{{.LocalIP}}{{else}}—{{end}}</span>
+    </div>
+    <div class="advanced-only mt-4">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b">
+                    <th class="text-left py-2 text-gray-500 font-medium">Сервис</th>
+                    <th class="text-left py-2 text-gray-500 font-medium">Статус</th>
+                    <th class="text-right py-2 text-gray-500 font-medium">Действие</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Services}}
+                <tr class="border-b last:border-0">
+                    <td class="py-2 font-mono">{{.Name}}</td>
+                    <td class="py-2">
+                        {{if .Active}}
+                        <span class="inline-flex items-center gap-1 text-green-700">
+                            <span class="w-2 h-2 rounded-full bg-green-500"></span>active
+                        </span>
+                        {{else}}
+                        <span class="inline-flex items-center gap-1 text-red-600">
+                            <span class="w-2 h-2 rounded-full bg-red-500"></span>{{.Status}}
+                        </span>
+                        {{end}}
+                    </td>
+                    <td class="py-2 text-right">
+                        <button class="text-xs bg-orange-500 text-white px-2 py-1 rounded hover:bg-orange-600"
+                            hx-post="/api/restart/{{.Name}}" hx-swap="none"
+                            hx-on::after-request="htmx.trigger(this.closest('section'), 'htmx:load')">
+                            Restart
+                        </button>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+{{end}}
+
+{{define "server-list"}}
+{{if .Servers}}
+<div class="space-y-2">
+    {{range $i, $s := .Servers}}
+    <div class="flex items-center justify-between p-3 rounded border {{if eq $i $.ActiveIdx}}border-blue-500 bg-blue-50{{else}}border-gray-200{{end}}">
+        <div class="flex items-center gap-3">
+            {{if eq $i $.ActiveIdx}}
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+            {{else}}
+            <span class="w-2.5 h-2.5 rounded-full bg-gray-300"></span>
+            {{end}}
+            <div>
+                <div class="font-medium text-sm">{{$s.Name}}</div>
+                <div class="text-xs text-gray-500 font-mono">{{$s.Address}}:{{$s.Port}}</div>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            {{if ne $i $.ActiveIdx}}
+            <button class="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                hx-post="/api/vless/{{$s.ID}}/activate" hx-target="#server-list" hx-swap="innerHTML">
+                Подключить
+            </button>
+            {{else}}
+            <span class="text-xs text-blue-600 font-medium px-3 py-1">Активен</span>
+            {{end}}
+            <button class="advanced-only text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200"
+                hx-delete="/api/vless/{{$s.ID}}" hx-target="#server-list" hx-swap="innerHTML"
+                hx-confirm="Удалить сервер {{$s.Name}}?">
+                ✕
+            </button>
+        </div>
+    </div>
+    {{end}}
+</div>
+{{else}}
+<p class="text-gray-400 text-sm">Нет серверов. Добавьте через vless:// ссылку.</p>
+{{end}}
+{{end}}
+
+{{define "wifi-status"}}
+<div class="flex items-center gap-3">
+    {{if .Connected}}
+    <span class="inline-block w-3 h-3 rounded-full bg-green-500"></span>
+    <span class="text-sm">Подключён к <strong>{{.SSID}}</strong></span>
+    {{else}}
+    <span class="inline-block w-3 h-3 rounded-full bg-gray-400"></span>
+    <span class="text-sm text-gray-500">Не подключён</span>
+    {{end}}
+</div>
+{{end}}
+
+{{define "wifi-scan"}}
+{{if .Networks}}
+<table class="w-full text-sm">
+    <thead>
+        <tr class="border-b">
+            <th class="text-left py-2 text-gray-500 font-medium">Сеть</th>
+            <th class="text-left py-2 text-gray-500 font-medium advanced-only">Сигнал</th>
+            <th class="text-left py-2 text-gray-500 font-medium advanced-only">Защита</th>
+            <th class="text-right py-2"></th>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .Networks}}
+        <tr class="border-b last:border-0">
+            <td class="py-2">{{.SSID}}</td>
+            <td class="py-2 advanced-only">
+                <div class="flex items-center gap-1">
+                    <div class="w-16 bg-gray-200 rounded-full h-1.5">
+                        <div class="bg-blue-600 h-1.5 rounded-full" style="width: {{.SignalPercent}}%"></div>
+                    </div>
+                    <span class="text-xs text-gray-500">{{.Signal}}</span>
+                </div>
+            </td>
+            <td class="py-2 text-xs advanced-only">
+                {{if eq .Security "open"}}
+                <span class="text-yellow-600">Открытая</span>
+                {{else}}
+                <span class="text-green-600">{{.Security}}</span>
+                {{end}}
+            </td>
+            <td class="py-2 text-right">
+                <button class="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                    onclick="connectWifi('{{.SSID}}', '{{.Security}}')">
+                    Подключить
+                </button>
+            </td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{else}}
+<p class="text-gray-400 text-sm">Сети не найдены</p>
+{{end}}
+{{end}}
+
+{{define "hwid"}}
+<code class="bg-gray-100 px-2 py-1 rounded text-sm font-mono select-all">{{.HWID}}</code>
+{{end}}
+
+{{define "sub-result"}}
+{{if .Error}}
+<div class="text-red-600 text-sm p-2 bg-red-50 rounded">{{.Error}}</div>
+{{else}}
+<div class="text-green-600 text-sm p-2 bg-green-50 rounded">Добавлено серверов: {{.Added}}</div>
+{{end}}
+{{end}}
+
+{{define "settings-result"}}
+{{if .Error}}
+<div class="text-red-600 text-sm p-3 bg-red-50 rounded mt-2">{{.Error}}</div>
+{{else}}
+<div class="text-green-600 text-sm p-3 bg-green-50 rounded mt-2">{{.Message}}</div>
+{{end}}
+{{end}}
+
+{{define "restart-result"}}
+<div class="text-green-600 text-sm p-2 bg-green-50 rounded">{{.Service}} перезапущен</div>
+{{end}}

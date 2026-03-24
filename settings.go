@@ -51,6 +51,11 @@ func (h *SettingsHandler) HandlePanelPassword(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if isHTMX(r) {
+		renderFragment(w, "settings-result", map[string]string{"Message": "Пароль панели изменён"})
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "message": "Пароль панели изменён"})
 }
@@ -100,6 +105,15 @@ func (h *SettingsHandler) HandleAPPassword(w http.ResponseWriter, r *http.Reques
 	}
 
 	h.Store.SaveConfig(cfg)
+
+	if isHTMX(r) {
+		msg := "Пароль AP обновлён"
+		if apPassword == "" {
+			msg = "AP открыта (пароль удалён)"
+		}
+		renderFragment(w, "settings-result", map[string]string{"Message": msg})
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})

@@ -4,7 +4,7 @@ After=network.target uap0.service
 
 [Service]
 User=root
-ExecStart=/home/max/rpi-panel
+ExecStart=/home/max/rpi-panel --data-dir /etc/rpi-panel
 Restart=always
 
 [Install]

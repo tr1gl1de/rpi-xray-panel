@@ -55,7 +55,6 @@ var AllowedServices = map[string]bool{
 	"redsocks": true,
 	"hostapd":  true,
 	"dnsmasq":  true,
-	"uap0":     true,
 }
 
 // ServiceStatus represents the status of a single service.
@@ -131,6 +130,22 @@ func (h *ServiceHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 		LocalIP:    localIP,
 	}
 
+	if isHTMX(r) {
+		vpnActive := false
+		for _, s := range services {
+			if s.Name == "xray" && s.Active {
+				vpnActive = true
+			}
+		}
+		renderFragment(w, "status", map[string]interface{}{
+			"VPNActive":  vpnActive,
+			"ExternalIP": externalIP,
+			"LocalIP":    localIP,
+			"Services":   services,
+		})
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
@@ -157,6 +172,11 @@ func (h *ServiceHandler) HandleRestart(w http.ResponseWriter, r *http.Request) {
 	_, err := h.Runner.Run("sudo", "systemctl", "restart", service)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to restart %s: %v", service, err), http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMX(r) {
+		renderFragment(w, "restart-result", map[string]string{"Service": service})
 		return
 	}
 

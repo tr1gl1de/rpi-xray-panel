@@ -104,6 +104,11 @@ func (h *SubHandler) HandleHWID(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to generate HWID: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if isHTMX(r) {
+		renderFragment(w, "hwid", map[string]string{"HWID": hwid})
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"hwid": hwid})
 }
@@ -155,6 +160,11 @@ func (h *SubHandler) HandleSub(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt: time.Now(),
 	})
 	h.Store.SaveSubs(subs)
+
+	if isHTMX(r) {
+		renderFragment(w, "sub-result", map[string]interface{}{"Added": len(servers)})
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{

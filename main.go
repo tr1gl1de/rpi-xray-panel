@@ -19,17 +19,32 @@ func main() {
 	dataDir := flag.String("data-dir", "./data", "Path to data directory")
 	hostapdConf := flag.String("hostapd-conf", "/etc/hostapd/hostapd.conf", "Path to hostapd.conf")
 	xrayConfig := flag.String("xray-config", "/usr/local/etc/xray/config.json", "Path to xray config.json")
+	reset := flag.Bool("reset", false, "Reset panel password and return to setup wizard")
 	flag.Parse()
-
-	var err error
-	templates, err = template.ParseFS(templateFS, "templates/*.html")
-	if err != nil {
-		log.Fatalf("Failed to parse templates: %v", err)
-	}
 
 	store, err := NewStorage(*dataDir)
 	if err != nil {
 		log.Fatalf("Failed to init storage: %v", err)
+	}
+
+	if *reset {
+		cfg, err := store.LoadConfig()
+		if err != nil {
+			log.Fatalf("Failed to load config: %v", err)
+		}
+		cfg.SetupDone = false
+		cfg.PasswordHash = ""
+		if err := store.SaveConfig(cfg); err != nil {
+			log.Fatalf("Failed to save config: %v", err)
+		}
+		log.Println("Panel password reset. Run without --reset to start setup wizard.")
+		return
+	}
+
+	var tmplErr error
+	templates, tmplErr = template.ParseFS(templateFS, "templates/*.html")
+	if tmplErr != nil {
+		log.Fatalf("Failed to parse templates: %v", tmplErr)
 	}
 
 	cmdRunner := &RealCommandRunner{}
@@ -75,6 +90,7 @@ func main() {
 	mux.HandleFunc("/api/logs/", svcHandler.HandleLogs)
 
 	// API: VLESS
+	mux.HandleFunc("/api/vless/selector", vlessHandler.HandleSelector)
 	mux.HandleFunc("/api/vless", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
