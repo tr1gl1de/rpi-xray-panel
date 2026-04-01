@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 )
 
 //go:embed templates/*
@@ -49,7 +50,7 @@ func main() {
 	}
 
 	cmdRunner := &RealCommandRunner{}
-	ipFetcher := &HTTPExternalIPFetcher{}
+	ipFetcher := NewCachedIPFetcher(&HTTPExternalIPFetcher{}, 30*time.Second)
 	sessions := NewSessionStore()
 
 	apManager := NewAPManager(*hostapdConf, cmdRunner, func(secured bool) error {

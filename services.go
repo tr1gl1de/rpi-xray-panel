@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -37,7 +38,7 @@ type HTTPExternalIPFetcher struct {
 func (f *HTTPExternalIPFetcher) Fetch() (string, error) {
 	client := f.Client
 	if client == nil {
-		client = &http.Client{Timeout: 5 * time.Second}
+		client = &http.Client{Timeout: 3 * time.Second}
 	}
 	resp, err := client.Get("https://ifconfig.me/ip")
 	if err != nil {
@@ -47,6 +48,48 @@ func (f *HTTPExternalIPFetcher) Fetch() (string, error) {
 	buf := make([]byte, 256)
 	n, _ := resp.Body.Read(buf)
 	return strings.TrimSpace(string(buf[:n])), nil
+}
+
+// CachedIPFetcher wraps an ExternalIPFetcher with a cache and non-blocking updates.
+type CachedIPFetcher struct {
+	inner    ExternalIPFetcher
+	mu       sync.Mutex
+	ip       string
+	lastFetch time.Time
+	ttl      time.Duration
+	fetching bool
+}
+
+func NewCachedIPFetcher(inner ExternalIPFetcher, ttl time.Duration) *CachedIPFetcher {
+	return &CachedIPFetcher{inner: inner, ttl: ttl}
+}
+
+func (c *CachedIPFetcher) Fetch() (string, error) {
+	c.mu.Lock()
+	ip := c.ip
+	expired := time.Since(c.lastFetch) > c.ttl
+	fetching := c.fetching
+	c.mu.Unlock()
+
+	// Return cached value immediately, refresh in background if expired
+	if expired && !fetching {
+		c.mu.Lock()
+		c.fetching = true
+		c.mu.Unlock()
+
+		go func() {
+			newIP, err := c.inner.Fetch()
+			c.mu.Lock()
+			defer c.mu.Unlock()
+			c.fetching = false
+			if err == nil {
+				c.ip = newIP
+				c.lastFetch = time.Now()
+			}
+		}()
+	}
+
+	return ip, nil
 }
 
 // AllowedServices is the whitelist of services that can be managed.
@@ -109,8 +152,13 @@ func (h *ServiceHandler) getLocalIP() string {
 	return ""
 }
 
-// HandleStatus handles GET /api/status.
+// HandleStatus handles GET/HEAD /api/status.
 func (h *ServiceHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
+	// Allow HEAD for connection monitoring
+	if r.Method == http.MethodHead {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
